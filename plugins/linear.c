@@ -40,6 +40,10 @@ struct tslib_linear {
 	/* Screen resolution at the time when calibration was performed */
 	unsigned int cal_res_x;
 	unsigned int cal_res_y;
+
+	/* Parameters related to screen rotation */
+	unsigned int	rot;
+
 };
 
 static int linear_read(struct tslib_module_info *info, struct ts_sample *samp,
@@ -80,6 +84,30 @@ static int linear_read(struct tslib_module_info *info, struct ts_sample *samp,
 
 				samp->x = samp->y;
 				samp->y = tmp;
+			}
+
+			switch (lin->rot) {
+			int rot_tmp;
+			case 0:
+				break;
+			case 1:
+				rot_tmp = samp->x;
+
+				samp->x = samp->y ;
+				samp->y = samp->x - rot_tmp - 1;
+				break;
+			case 2:
+				samp->x = lin->cal_res_x - samp->x - 1;
+				samp->y = lin->cal_res_y - samp->y - 1;
+				break;
+			case 3:
+				rot_tmp = samp->x;
+
+				samp->x = lin->cal_res_y - samp->y - 1;
+				samp->y = rot_tmp;
+				break;
+			default:
+				break;
 			}
 		}
 	}
@@ -146,6 +174,31 @@ static int linear_read_mt(struct tslib_module_info *info,
 				samp[nr][i].x = samp[nr][i].y;
 				samp[nr][i].y = tmp;
 			}
+
+			switch (lin->rot) {
+			int rot_tmp;
+			case 0:
+				break;
+			case 1:
+				rot_tmp = samp[nr][i].x;
+
+				samp[nr][i].x = samp[nr][i].y;
+				samp[nr][i].y = lin->cal_res_x - rot_tmp -1 ;
+				break;
+			case 2:
+				samp[nr][i].x = lin->cal_res_x - samp[nr][i].x - 1;
+				samp[nr][i].y = lin->cal_res_y - samp[nr][i].y - 1;
+				break;
+			case 3:
+				rot_tmp = samp[nr][i].x;
+
+				samp[nr][i].x = lin->cal_res_y - samp[nr][i].y - 1;
+				samp[nr][i].y = rot_tmp ;
+				break;
+			default:
+				break;
+			}
+
 		}
 	}
 
@@ -214,11 +267,36 @@ static int linear_p_div(struct tslib_module_info *inf, char *str,
 	return 0;
 }
 
+static int linear_rot(struct tslib_module_info *inf, char *str,
+			__attribute__ ((unused)) void *data)
+{
+	struct tslib_linear *lin = (struct tslib_linear *)inf;
+	unsigned long rot = strtoul(str, NULL, 0);
+
+	if (div == ULONG_MAX && errno == ERANGE)
+		return -1;
+
+	switch (rot) {
+	case 0:
+	case 1:
+	case 2:
+	case 3:
+		lin->rot = rot;
+		break;
+
+	default:
+		return -1;
+	}
+
+	return 0;
+}
+
 static const struct tslib_vars linear_vars[] = {
 	{ "xyswap",	(void *)1, linear_xyswap },
 	{ "pressure_offset", NULL, linear_p_offset},
 	{ "pressure_mul", NULL, linear_p_mult},
 	{ "pressure_div", NULL, linear_p_div},
+	{ "rot", NULL, linear_rot},
 };
 
 #define NR_VARS (sizeof(linear_vars) / sizeof(linear_vars[0]))
